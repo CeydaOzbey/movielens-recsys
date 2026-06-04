@@ -1,0 +1,45 @@
+{
+  "experiment": "MovieLens-25M-ALS-on-Dataproc",
+  "date": "2026-06-04",
+  "cluster": {
+    "platform": "Google Cloud Dataproc",
+    "region": "us-central1",
+    "image_version": "2.1-debian11",
+    "master_machine_type": "n1-standard-2",
+    "worker_machine_type": "n1-standard-2",
+    "num_workers": 2
+  },
+  "dataset": {
+    "name": "MovieLens 25M",
+    "n_ratings": 25000095,
+    "n_users": 162541,
+    "n_movies": 59047
+  },
+  "preprocessing": {
+    "cold_start_threshold": 20,
+    "n_users_after_filter": 162541,
+    "n_ratings_after_filter": 25000095,
+    "train_rows": 19999539,
+    "test_rows": 5000556,
+    "split_strategy": "random_80_20",
+    "seed": 42
+  },
+  "als_hyperparameters": {
+    "rank": 10,
+    "max_iter": 10,
+    "reg_param": 0.1,
+    "cold_start_strategy": "drop",
+    "nonnegative": true
+  },
+  "metrics": {
+    "rmse": 0.8133,
+    "mae": 0.6312
+  },
+  "runtime": {
+    "load_and_count_seconds": 111.7,
+    "cold_start_filter_seconds": 88.8,
+    "als_training_seconds": 319.2,
+    "total_pipeline_seconds": 1001.7
+  },
+  "estimated_cost_usd": 0.10
+}

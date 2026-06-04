@@ -1,0 +1,55 @@
+============================================================
+MovieLens 25M ALS Pipeline
+============================================================
+
+Dataset stats:
+  Total ratings:    25,000,095
+  Unique users:        162,541
+  Unique movies:        59,047
+  Load + count:    111.7s
+
+Cold-start filter (>= 20 ratings):
+  Active users:        162,541
+  Filtered rows:    25,000,095
+  Elapsed:          88.8s
+
+Split (80/20):
+  Train rows: 19,999,539
+  Test rows:   5,000,556
+
+ALS training complete in 319.2s
+
+Results:
+  Test RMSE: 0.8133
+  Test MAE:  0.6312
+
+Top 10 most-rated movies:
++-------+-------------------------------------------+-----------+------------------+
+|movieId|title                                      |num_ratings|avg_rating        |
++-------+-------------------------------------------+-----------+------------------+
+|356    |Forrest Gump (1994)                        |81491      |4.048011436845787 |
+|318    |Shawshank Redemption, The (1994)           |81482      |4.413576004516335 |
+|296    |Pulp Fiction (1994)                        |79672      |4.188912039361382 |
+|593    |Silence of the Lambs, The (1991)           |74127      |4.151341616415071 |
+|2571   |Matrix, The (1999)                         |72674      |4.154099127610975 |
+|260    |Star Wars: Episode IV - A New Hope (1977)  |68717      |4.120188599618726 |
+|480    |Jurassic Park (1993)                       |64144      |3.6791749812920926|
+|527    |Schindler's List (1993)                    |60411      |4.247579083279535 |
+|110    |Braveheart (1995)                          |59184      |4.002272573668559 |
+|2959   |Fight Club (1999)                          |58773      |4.228310618821568 |
++-------+-------------------------------------------+-----------+------------------+
+
+Model saved to gs://movielens-ceyda-1801042636/results/als_model
+Top-10 recommendations saved to gs://movielens-ceyda-1801042636/results/top10_recommendations
+
+Total pipeline time: 1001.7s
+============================================================
+
+Job [516fd9084aa04d09a57c22ae40bc96a4] finished successfully.
+status: DONE
+yarnApplications:
+  name: MovieLens-25M-ALS
+  state: FINISHED
+  progress: 1.0
+  memoryMbSeconds: 12250489
+  vcoreSeconds: 3985

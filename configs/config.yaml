@@ -1,0 +1,57 @@
+# =============================================================================
+# Pipeline Configuration
+# =============================================================================
+# All paths, hyperparameters, and Spark settings in one place.
+# To switch between local / GCP / AWS, only "paths.base" needs to change.
+# =============================================================================
+
+project:
+  name: movielens-recsys
+  random_seed: 42
+
+paths:
+  # Examples:
+  #   local:  "data/ml-25m/"            (after running download_data.sh 25m)
+  #   small:  "data/ml-latest-small/"   (Colab / quick dev)
+  #   GCP:    "gs://your-bucket/ml-25m/"
+  #   AWS:    "s3://your-bucket/ml-25m/"
+  base: "data/ml-latest-small/"
+  ratings: "ratings.csv"
+  movies:  "movies.csv"
+  tags:    "tags.csv"
+  output_dir: "outputs/"
+
+preprocessing:
+  min_user_ratings: 20            # Cold-start filter threshold
+  train_split: 0.8                # 80/20 train-test
+  use_time_split: false           # If true, splits on timestamp
+  time_split_threshold: "2018-01-01"
+
+als:
+  rank: 10
+  max_iter: 10
+  reg_param: 0.1
+  cold_start_strategy: "drop"     # "drop" or "nan"
+  nonnegative: true
+  user_col: "userId"
+  item_col: "movieId"
+  rating_col: "rating"
+
+als_tuning:
+  # Hyperparameter search space for scripts/run_local.py --tune
+  rank:      [10, 20, 50]
+  max_iter:  [10, 20]
+  reg_param: [0.05, 0.1, 0.2]
+
+evaluation:
+  top_k: 10                       # K for Precision@K and NDCG@K
+  rmse_target: 0.85
+  precision_target: 0.35
+  rating_threshold: 4.0           # Items rated >= 4.0 are "relevant"
+
+spark:
+  app_name: "MovieLens-RecSys"
+  shuffle_partitions: 200
+  driver_memory: "4g"
+  executor_memory: "4g"
+  log_level: "WARN"

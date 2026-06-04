@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data files (too large for git)
+data/
+ml-25m/
+ml-latest-small/
+*.zip
+*.csv
+*.parquet
+
+# Outputs we don't commit
+outputs/
+*.log
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials (NEVER commit these)
+*.json
+!results/*.json
+service-account*.json
+gcp-key.json
+.gcloud/
+.vs/

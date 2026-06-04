@@ -1,0 +1,41 @@
+# =============================================================================
+# GCP Dataproc Cluster Specification
+# =============================================================================
+# This file documents the exact cluster configuration used for the full-25M
+# experiment reported in the final paper. It is referenced by
+# scripts/02_create_cluster.sh.
+# =============================================================================
+
+cluster:
+  name: movielens-cluster
+  region: us-central1
+  zone: us-central1-a
+
+  master:
+    machine_type: n1-standard-2   # 2 vCPU, 7.5 GB RAM
+    boot_disk_size_gb: 50
+    boot_disk_type: pd-standard
+
+  workers:
+    count: 2
+    machine_type: n1-standard-2
+    boot_disk_size_gb: 50
+    boot_disk_type: pd-standard
+
+  software:
+    image_version: "2.1-debian11"
+    components:
+      - "JUPYTER"
+    optional_components_note: |
+      Component Gateway is enabled so that the Spark Web UI can be accessed
+      through the GCP Console without SSH tunneling.
+
+  estimated_cost:
+    per_hour_usd: 0.30
+    typical_job_minutes: 17
+    typical_job_cost_usd: 0.10
+
+  notes: |
+    The cluster is provisioned on demand and torn down after each run.
+    Persistent state (data, models, results) lives in the GCS bucket;
+    nothing critical is stored on the cluster nodes themselves.
