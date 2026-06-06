@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""
-End-to-end pipeline for LOCAL or COLAB execution.
-
-Steps:
-  1. Load MovieLens (small subset)
-  2. Run EDA (plots, top movies)
-  3. Preprocess (cold-start filter + train/test split)
-  4. Train ALS (primary model)
-  5. Optionally train SVD + KNN baselines
-  6. Evaluate (RMSE, MAE, Precision@K, NDCG@K)
-  7. Save model, metrics, and recommendations
+"""Local/Colab end-to-end pipeline for MovieLens recommendations.
 
 Usage:
     python scripts/run_local.py --config configs/config.yaml
@@ -76,17 +66,16 @@ def main(config_path: str, run_baselines: bool) -> int:
         logger.info("Computing naive baseline...")
         naive_metrics = naive_baseline(train, test)
 
-        # 5. Train ALS (primary)
+        # 5. Train ALS
         logger.info("Training ALS model...")
         als_model = train_als(train, config)
 
-        # 6. Evaluate ALS
+        # 6. Evaluate
         logger.info("Evaluating ALS model...")
         als_metrics = evaluate_all(als_model, train, test, config)
 
         # 7. Top-K recommendations
-        # Save as JSON (via pandas) instead of parquet so this works on Windows
-        # without winutils.exe / HADOOP_HOME being set up.
+        # Saved as JSON (not parquet) to avoid needing winutils.exe on Windows
         k = config["evaluation"]["top_k"]
         logger.info(f"Generating top-{k} recommendations for all users...")
         user_recs = generate_top_n_recommendations(als_model, n=k)
@@ -103,18 +92,13 @@ def main(config_path: str, run_baselines: bool) -> int:
         logger.info(f"Saved recommendations to: {recs_path}")
 
         # 8. Save model
-        # On Windows, Spark's model.save() also calls into Hadoop and may fail
-        # without winutils.exe. We skip the local model save in that case and
-        # rely on the cloud (Dataproc) run for the persisted model artefact.
         model_path = resolve_path(output_dir, "als_model")
         try:
             save_model(als_model, model_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                f"Skipping local model save (likely Windows/Hadoop issue): {exc}"
-            )
+        except Exception as exc:
+            logger.warning(f"Skipping local model save: {exc}")
 
-        # 9. Optional baselines (SVD + KNN)
+        # 9. Optional baselines
         baseline_metrics = {}
         if run_baselines:
             logger.info("Training baseline models (SVD + KNN)...")
@@ -128,7 +112,7 @@ def main(config_path: str, run_baselines: bool) -> int:
             knn_rmse, knn_mae = evaluate_knn(train, test, k=20)
             baseline_metrics["knn"] = {"rmse": knn_rmse, "mae": knn_mae}
 
-        # 10. Save metrics report
+        # 10. Save metrics
         elapsed = time.time() - start
         report = {
             "dataset_stats":    stats,
@@ -137,12 +121,12 @@ def main(config_path: str, run_baselines: bool) -> int:
             "als_metrics":      als_metrics,
             "baseline_metrics": baseline_metrics,
             "config_used": {
-                "rank":      config["als"]["rank"],
-                "max_iter":  config["als"]["max_iter"],
-                "reg_param": config["als"]["reg_param"],
+                "rank":             config["als"]["rank"],
+                "max_iter":         config["als"]["max_iter"],
+                "reg_param":        config["als"]["reg_param"],
                 "min_user_ratings": config["preprocessing"]["min_user_ratings"],
             },
-            "elapsed_seconds":  round(elapsed, 2),
+            "elapsed_seconds": round(elapsed, 2),
         }
 
         metrics_path = Path(output_dir) / "metrics.json"
@@ -153,7 +137,7 @@ def main(config_path: str, run_baselines: bool) -> int:
         logger.info(f"Pipeline complete in {elapsed:.1f}s")
         return 0
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception(f"Pipeline failed: {e}")
         return 1
     finally:
@@ -162,15 +146,7 @@ def main(config_path: str, run_baselines: bool) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MovieLens recommendation pipeline (local)")
-    parser.add_argument(
-        "--config",
-        default="configs/config.yaml",
-        help="Path to YAML config file",
-    )
-    parser.add_argument(
-        "--baselines",
-        action="store_true",
-        help="Also train and evaluate SVD and KNN baselines",
-    )
+    parser.add_argument("--config", default="configs/config.yaml", help="Path to YAML config file")
+    parser.add_argument("--baselines", action="store_true", help="Also train SVD and KNN baselines")
     args = parser.parse_args()
     sys.exit(main(args.config, args.baselines))

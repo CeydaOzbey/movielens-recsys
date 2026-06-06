@@ -1,13 +1,7 @@
-"""
-ALS (Alternating Least Squares) collaborative filtering model.
-
-This is the PRIMARY model for the project. Uses Spark MLlib's distributed
-implementation, which scales to hundreds of millions of ratings.
-"""
+"""ALS collaborative filtering - primary model."""
 from __future__ import annotations
 
 from itertools import product
-from typing import Optional
 
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS, ALSModel
@@ -19,7 +13,6 @@ logger = setup_logger("als_model")
 
 
 def build_als(config: dict) -> ALS:
-    """Construct an ALS estimator from the config values."""
     cfg = config["als"]
     return ALS(
         rank=cfg["rank"],
@@ -36,7 +29,6 @@ def build_als(config: dict) -> ALS:
 
 
 def train_als(train: DataFrame, config: dict) -> ALSModel:
-    """Fit ALS on the training data and return the fitted model."""
     als = build_als(config)
     logger.info(
         f"Training ALS: rank={als.getRank()}, maxIter={als.getMaxIter()}, "
@@ -48,7 +40,6 @@ def train_als(train: DataFrame, config: dict) -> ALSModel:
 
 
 def evaluate_rmse(model: ALSModel, test: DataFrame, config: dict) -> float:
-    """Compute Test RMSE."""
     predictions = model.transform(test)
     evaluator = RegressionEvaluator(
         metricName="rmse",
@@ -61,7 +52,6 @@ def evaluate_rmse(model: ALSModel, test: DataFrame, config: dict) -> float:
 
 
 def evaluate_mae(model: ALSModel, test: DataFrame, config: dict) -> float:
-    """Compute Test MAE."""
     predictions = model.transform(test)
     evaluator = RegressionEvaluator(
         metricName="mae",
@@ -73,24 +63,15 @@ def evaluate_mae(model: ALSModel, test: DataFrame, config: dict) -> float:
     return mae
 
 
-def hyperparameter_search(
-    train: DataFrame,
-    val: DataFrame,
-    config: dict,
-) -> tuple[ALSModel, dict]:
-    """
-    Manual grid search over the values in `als_tuning`.
-
-    Returns the best model and a dict of {params_string: rmse}.
-    """
+def hyperparameter_search(train: DataFrame, val: DataFrame, config: dict):
     space = config["als_tuning"]
     grid = list(product(space["rank"], space["max_iter"], space["reg_param"]))
     logger.info(f"Hyperparameter search: {len(grid)} configurations")
 
     results = {}
     best_rmse = float("inf")
-    best_model: Optional[ALSModel] = None
-    best_params: Optional[tuple] = None
+    best_model = None
+    best_params = None
 
     for rank, max_iter, reg_param in grid:
         cfg = {**config, "als": {**config["als"],
@@ -117,17 +98,14 @@ def hyperparameter_search(
 
 
 def generate_top_n_recommendations(model: ALSModel, n: int = 10) -> DataFrame:
-    """Generate top-N movie recommendations for every user."""
     return model.recommendForAllUsers(n)
 
 
 def save_model(model: ALSModel, path: str) -> None:
-    """Save a trained ALS model (path can be local, gs://, or s3://)."""
     model.write().overwrite().save(path)
     logger.info(f"Saved ALS model to: {path}")
 
 
 def load_model(path: str) -> ALSModel:
-    """Load a previously saved ALS model."""
     logger.info(f"Loading ALS model from: {path}")
     return ALSModel.load(path)

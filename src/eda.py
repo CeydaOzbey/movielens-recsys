@@ -1,14 +1,11 @@
-"""
-Exploratory data analysis: rating distribution, top movies, user activity.
-Saves plots to the configured output directory.
-"""
+"""EDA: rating distribution, top movies, user activity."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib
 
-matplotlib.use("Agg")  # No display required (works on cloud nodes)
+matplotlib.use("Agg")  # headless
 import matplotlib.pyplot as plt
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import avg, count, desc
@@ -19,7 +16,6 @@ logger = setup_logger("eda")
 
 
 def plot_rating_distribution(ratings: DataFrame, output_dir: str) -> str:
-    """Plot the histogram of all ratings and save as PNG."""
     rating_counts = (
         ratings
         .groupBy("rating")
@@ -49,16 +45,7 @@ def plot_rating_distribution(ratings: DataFrame, output_dir: str) -> str:
     return out_path
 
 
-def top_n_movies(
-    ratings: DataFrame,
-    movies: DataFrame,
-    n: int = 10,
-    min_ratings: int = 50,
-) -> DataFrame:
-    """
-    Top N most-rated movies, with their average rating.
-    A minimum-ratings filter avoids spurious results from rarely-rated films.
-    """
+def top_n_movies(ratings: DataFrame, movies: DataFrame, n: int = 10, min_ratings: int = 50) -> DataFrame:
     result = (
         ratings
         .join(movies, on="movieId")
@@ -77,7 +64,6 @@ def top_n_movies(
 
 
 def user_activity_summary(ratings: DataFrame) -> dict:
-    """How many ratings each user has - useful to understand the long tail."""
     activity = ratings.groupBy("userId").agg(count("rating").alias("n_ratings"))
     pdf = activity.toPandas()
     summary = {
@@ -93,9 +79,8 @@ def user_activity_summary(ratings: DataFrame) -> dict:
 
 
 def run_eda(ratings: DataFrame, movies: DataFrame, output_dir: str) -> dict:
-    """Run all EDA steps and return a dict of artifacts and stats."""
     return {
         "rating_distribution_plot": plot_rating_distribution(ratings, output_dir),
-        "top_movies":   top_n_movies(ratings, movies),
+        "top_movies":    top_n_movies(ratings, movies),
         "user_activity": user_activity_summary(ratings),
     }

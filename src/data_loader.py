@@ -1,9 +1,4 @@
-"""
-Load the MovieLens dataset into Spark DataFrames.
-
-Uses explicit schemas (faster than inferSchema, especially at 25M scale)
-and validates basic invariants after loading.
-"""
+"""MovieLens dataset loader for Spark DataFrames."""
 from __future__ import annotations
 
 from pyspark.sql import DataFrame, SparkSession
@@ -19,9 +14,6 @@ from pyspark.sql.types import (
 from .utils import resolve_path, setup_logger
 
 logger = setup_logger("data_loader")
-
-
-# ─── Schemas ────────────────────────────────────────────────────────────────
 
 RATINGS_SCHEMA = StructType([
     StructField("userId",    IntegerType(), nullable=False),
@@ -44,42 +36,33 @@ TAGS_SCHEMA = StructType([
 ])
 
 
-# ─── Loaders ────────────────────────────────────────────────────────────────
-
 def load_ratings(spark: SparkSession, config: dict) -> DataFrame:
-    """Load ratings.csv with explicit schema."""
     path = resolve_path(config["paths"]["base"], config["paths"]["ratings"])
     logger.info(f"Loading ratings from {path}")
-
     df = (
         spark.read
         .option("header", "true")
         .schema(RATINGS_SCHEMA)
         .csv(path)
     )
-    n = df.count()
-    logger.info(f"Loaded {n:,} ratings")
+    logger.info(f"Loaded {df.count():,} ratings")
     return df
 
 
 def load_movies(spark: SparkSession, config: dict) -> DataFrame:
-    """Load movies.csv with explicit schema."""
     path = resolve_path(config["paths"]["base"], config["paths"]["movies"])
     logger.info(f"Loading movies from {path}")
-
     df = (
         spark.read
         .option("header", "true")
         .schema(MOVIES_SCHEMA)
         .csv(path)
     )
-    n = df.count()
-    logger.info(f"Loaded {n:,} movies")
+    logger.info(f"Loaded {df.count():,} movies")
     return df
 
 
 def load_tags(spark: SparkSession, config: dict) -> DataFrame:
-    """Load tags.csv with explicit schema (optional; not used in v1 model)."""
     path = resolve_path(config["paths"]["base"], config["paths"]["tags"])
     logger.info(f"Loading tags from {path}")
     return (
@@ -90,10 +73,7 @@ def load_tags(spark: SparkSession, config: dict) -> DataFrame:
     )
 
 
-# ─── Stats ──────────────────────────────────────────────────────────────────
-
 def report_dataset_stats(ratings: DataFrame, movies: DataFrame) -> dict:
-    """Compute and log high-level dataset statistics."""
     stats = {
         "n_ratings":  ratings.count(),
         "n_users":    ratings.select("userId").distinct().count(),

@@ -1,14 +1,4 @@
-"""
-Item-based K-Nearest Neighbors baseline using cosine similarity.
-
-For each (user, item) pair in the test set, predict the rating by:
-  1. Finding the K most similar items (by cosine similarity of their rating vectors)
-     that the user has already rated.
-  2. Taking a similarity-weighted average of the user's ratings for those K items.
-
-Like the SVD baseline, this is a SINGLE-MACHINE method. It pulls the rating
-matrix into a SciPy sparse matrix, so it does not scale to 25M ratings.
-"""
+"""Item-based KNN baseline with cosine similarity (single-machine)."""
 from __future__ import annotations
 
 import numpy as np
@@ -21,11 +11,7 @@ from ..utils import setup_logger
 logger = setup_logger("knn_baseline")
 
 
-def build_user_item_matrix(df: DataFrame) -> tuple[csr_matrix, dict, dict]:
-    """
-    Build a sparse user-item matrix and return it along with the
-    user_id -> row_index and movie_id -> col_index mappings.
-    """
+def build_user_item_matrix(df: DataFrame):
     pdf = df.select("userId", "movieId", "rating").toPandas()
 
     user_ids  = sorted(pdf["userId"].unique())
@@ -43,30 +29,19 @@ def build_user_item_matrix(df: DataFrame) -> tuple[csr_matrix, dict, dict]:
     )
 
     nnz_ratio = matrix.nnz / (matrix.shape[0] * matrix.shape[1]) * 100
-    logger.info(
-        f"User-item matrix: shape={matrix.shape}, density={nnz_ratio:.4f}%"
-    )
+    logger.info(f"User-item matrix: shape={matrix.shape}, density={nnz_ratio:.4f}%")
     return matrix, user_to_idx, movie_to_idx
 
 
 def compute_item_similarity(matrix: csr_matrix):
-    """Cosine similarity between all item pairs (sparse output)."""
     logger.info("Computing item-item cosine similarity...")
-    item_matrix = matrix.T  # items x users
+    item_matrix = matrix.T
     sim = cosine_similarity(item_matrix, dense_output=False)
     logger.info(f"Item similarity matrix shape: {sim.shape}")
     return sim
 
 
-def predict_rating(
-    user_idx: int,
-    item_idx: int,
-    user_item: csr_matrix,
-    item_sim,
-    k: int = 20,
-    default: float = 3.5,
-) -> float:
-    """Predict the rating that `user_idx` would give to `item_idx`."""
+def predict_rating(user_idx, item_idx, user_item, item_sim, k=20, default=3.5):
     user_ratings = user_item[user_idx].toarray().flatten()
     rated_idx = np.where(user_ratings > 0)[0]
 
@@ -76,10 +51,10 @@ def predict_rating(
     sims = item_sim[item_idx, rated_idx].toarray().flatten()
     if len(sims) > k:
         top_k = np.argsort(sims)[-k:]
-        top_sims = sims[top_k]
+        top_sims    = sims[top_k]
         top_ratings = user_ratings[rated_idx[top_k]]
     else:
-        top_sims = sims
+        top_sims    = sims
         top_ratings = user_ratings[rated_idx]
 
     if top_sims.sum() == 0:
@@ -87,12 +62,7 @@ def predict_rating(
     return float(np.dot(top_sims, top_ratings) / top_sims.sum())
 
 
-def evaluate_knn(
-    train_df: DataFrame,
-    test_df: DataFrame,
-    k: int = 20,
-) -> tuple[float, float]:
-    """Build matrix, compute similarities, evaluate on the test set."""
+def evaluate_knn(train_df: DataFrame, test_df: DataFrame, k: int = 20):
     matrix, user_to_idx, movie_to_idx = build_user_item_matrix(train_df)
     item_sim = compute_item_similarity(matrix)
 

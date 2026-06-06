@@ -1,13 +1,5 @@
-"""
-Evaluation metrics for recommender systems.
-
-Regression metrics: RMSE, MAE.
-Ranking metrics:    Precision@K, Recall@K, NDCG@K.
-Plus a naive baseline (predict the global mean) for comparison.
-"""
+"""RMSE, MAE, Precision@K, Recall@K, NDCG@K for recommender evaluation."""
 from __future__ import annotations
-
-from typing import Dict
 
 import numpy as np
 from pyspark.ml.evaluation import RegressionEvaluator
@@ -21,10 +13,7 @@ from .utils import setup_logger
 logger = setup_logger("evaluation")
 
 
-# ─── Regression Metrics ─────────────────────────────────────────────────────
-
-def naive_baseline(train: DataFrame, test: DataFrame) -> Dict[str, float]:
-    """Predict the global mean rating for everyone, compute RMSE and MAE."""
+def naive_baseline(train: DataFrame, test: DataFrame) -> dict:
     global_mean = float(train.agg({"rating": "avg"}).first()[0])
 
     test_pdf = test.select("rating").toPandas()
@@ -34,24 +23,11 @@ def naive_baseline(train: DataFrame, test: DataFrame) -> Dict[str, float]:
     rmse = float(np.sqrt(np.mean((preds - truths) ** 2)))
     mae  = float(np.mean(np.abs(preds - truths)))
 
-    logger.info(
-        f"Naive baseline (mean={global_mean:.3f}): RMSE={rmse:.4f}, MAE={mae:.4f}"
-    )
+    logger.info(f"Naive baseline (mean={global_mean:.3f}): RMSE={rmse:.4f}, MAE={mae:.4f}")
     return {"rmse": rmse, "mae": mae, "global_mean": global_mean}
 
 
-# ─── Ranking Metrics ────────────────────────────────────────────────────────
-
-def precision_at_k(
-    model: ALSModel,
-    test: DataFrame,
-    k: int = 10,
-    rating_threshold: float = 4.0,
-) -> float:
-    """
-    For each user, the fraction of the top-K recommended items that are
-    in the user's set of "relevant" items (ratings >= threshold in test).
-    """
+def precision_at_k(model: ALSModel, test: DataFrame, k: int = 10, rating_threshold: float = 4.0) -> float:
     relevant = (
         test
         .filter(col("rating") >= rating_threshold)
@@ -81,16 +57,7 @@ def precision_at_k(
     return precision
 
 
-def recall_at_k(
-    model: ALSModel,
-    test: DataFrame,
-    k: int = 10,
-    rating_threshold: float = 4.0,
-) -> float:
-    """
-    For each user, the fraction of their relevant items that appear in the
-    top-K recommendations.
-    """
+def recall_at_k(model: ALSModel, test: DataFrame, k: int = 10, rating_threshold: float = 4.0) -> float:
     relevant = (
         test
         .filter(col("rating") >= rating_threshold)
@@ -125,10 +92,6 @@ def recall_at_k(
 
 
 def ndcg_at_k(model: ALSModel, test: DataFrame, k: int = 10) -> float:
-    """
-    Normalized Discounted Cumulative Gain at K.
-    Rewards placing relevant items higher in the recommendation list.
-    """
     user_recs_pdf = model.recommendForAllUsers(k).toPandas()
     test_pdf = test.toPandas()
     user_test = (
@@ -147,8 +110,7 @@ def ndcg_at_k(model: ALSModel, test: DataFrame, k: int = 10) -> float:
         recs = [r["movieId"] for r in row["recommendations"]]
         relevances = [user_test[user].get(m, 0.0) for m in recs]
 
-        dcg = sum(rel / np.log2(i + 2) for i, rel in enumerate(relevances))
-
+        dcg  = sum(rel / np.log2(i + 2) for i, rel in enumerate(relevances))
         ideal = sorted(user_test[user].values(), reverse=True)[:k]
         idcg = sum(rel / np.log2(i + 2) for i, rel in enumerate(ideal))
 
@@ -163,15 +125,7 @@ def ndcg_at_k(model: ALSModel, test: DataFrame, k: int = 10) -> float:
     return ndcg
 
 
-# ─── Combined Evaluation ────────────────────────────────────────────────────
-
-def evaluate_all(
-    model: ALSModel,
-    train: DataFrame,
-    test: DataFrame,
-    config: dict,
-) -> Dict[str, float]:
-    """Run the full evaluation suite and return a metrics dict."""
+def evaluate_all(model: ALSModel, train: DataFrame, test: DataFrame, config: dict) -> dict:
     k = config["evaluation"]["top_k"]
     threshold = config["evaluation"]["rating_threshold"]
 
@@ -195,7 +149,7 @@ def evaluate_all(
     logger.info("Evaluation Summary")
     logger.info("=" * 50)
     for name, value in metrics.items():
-        logger.info(f"  {name:20s} = {value:.4f}")
+        logger.info(f"  {name} = {value:.4f}")
     logger.info("=" * 50)
 
     return metrics

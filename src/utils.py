@@ -1,9 +1,4 @@
-"""
-Logging, configuration, and Spark session helpers.
-
-Importing this module does NOT start a SparkSession - that is created
-explicitly via `get_spark_session()` when needed.
-"""
+"""Logging, config, and Spark session helpers."""
 from __future__ import annotations
 
 import logging
@@ -14,19 +9,8 @@ from typing import Any
 
 import yaml
 
-# Spark is only imported inside functions that need it, so that this module
-# can be imported in environments where pyspark is not installed (e.g. when
-# only running the SVD/KNN baselines).
-
-
-# ─── Logging ────────────────────────────────────────────────────────────────
 
 def setup_logger(name: str = "movielens", level: str = "INFO") -> logging.Logger:
-    """
-    Create a logger that writes to stdout with a consistent format.
-
-    Idempotent: calling twice with the same name does not duplicate handlers.
-    """
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
@@ -43,10 +27,7 @@ def setup_logger(name: str = "movielens", level: str = "INFO") -> logging.Logger
     return logger
 
 
-# ─── Config ─────────────────────────────────────────────────────────────────
-
 def load_config(config_path: str | Path = "configs/config.yaml") -> dict[str, Any]:
-    """Load a YAML config file and return it as a dict."""
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -55,37 +36,19 @@ def load_config(config_path: str | Path = "configs/config.yaml") -> dict[str, An
         return yaml.safe_load(f)
 
 
-# ─── Path Helpers ───────────────────────────────────────────────────────────
-
 def resolve_path(base: str, sub: str) -> str:
-    """
-    Join a base path (local, gs://, or s3://) with a sub-path.
-
-    Examples:
-        resolve_path("data/", "ratings.csv")               -> "data/ratings.csv"
-        resolve_path("gs://bucket/ml-25m/", "ratings.csv") -> "gs://bucket/ml-25m/ratings.csv"
-    """
     if base.startswith(("gs://", "s3://", "s3a://")):
         return base.rstrip("/") + "/" + sub.lstrip("/")
     return os.path.join(base, sub)
 
 
 def ensure_output_dir(path: str) -> None:
-    """Create a local output directory if it does not exist (cloud paths are skipped)."""
     if not path.startswith(("gs://", "s3://", "s3a://")):
         Path(path).mkdir(parents=True, exist_ok=True)
 
 
-# ─── Spark Session ──────────────────────────────────────────────────────────
-
 def get_spark_session(config: dict):
-    """
-    Create or return the active Spark session.
-
-    Imports pyspark lazily so this module can be used in environments without
-    Spark (e.g. SVD-only or KNN-only runs).
-    """
-    from pyspark.sql import SparkSession  # noqa: WPS433 (intentional lazy import)
+    from pyspark.sql import SparkSession  # lazy import: pyspark not required for SVD/KNN runs
 
     cfg = config.get("spark", {})
     spark = (
