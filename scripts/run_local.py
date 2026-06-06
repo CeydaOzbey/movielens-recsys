@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Local/Colab end-to-end pipeline for MovieLens recommendations.
-
-Usage:
-    python scripts/run_local.py --config configs/config.yaml
-    python scripts/run_local.py --config configs/config.yaml --baselines
-"""
-from __future__ import annotations
+"""End-to-end pipeline for LOCAL or COLAB execution."""
 
 import argparse
 import json
@@ -33,20 +27,20 @@ from src.utils import (
     setup_logger,
 )
 
-logger = setup_logger("pipeline")
+log = setup_logger("pipeline")
 
 
-def main(config_path: str, run_baselines: bool) -> int:
+def main(config_path, run_baselines):
     start = time.time()
-    logger.info(f"Starting pipeline with config: {config_path}")
+    log.info(f"Starting pipeline with config: {config_path}")
 
     config = load_config(config_path)
     output_dir = config["paths"]["output_dir"]
     ensure_output_dir(output_dir)
 
     spark = get_spark_session(config)
-    logger.info(f"Spark version: {spark.version}")
-    logger.info(f"Spark master:  {spark.sparkContext.master}")
+    log.info(f"Spark version: {spark.version}")
+    log.info(f"Spark master:  {spark.sparkContext.master}")
 
     try:
         # 1. Load
@@ -55,53 +49,56 @@ def main(config_path: str, run_baselines: bool) -> int:
         stats   = report_dataset_stats(ratings, movies)
 
         # 2. EDA
-        logger.info("Running EDA...")
+        log.info("Running EDA...")
         eda_artifacts = run_eda(ratings, movies, output_dir)
 
         # 3. Preprocess
-        logger.info("Preprocessing data...")
+        log.info("Preprocessing data...")
         train, test = preprocess(ratings, config)
 
         # 4. Naive baseline
-        logger.info("Computing naive baseline...")
+        log.info("Computing naive baseline...")
         naive_metrics = naive_baseline(train, test)
 
-        # 5. Train ALS
-        logger.info("Training ALS model...")
+        # 5. Train ALS (primary)
+        log.info("Training ALS model...")
         als_model = train_als(train, config)
 
-        # 6. Evaluate
-        logger.info("Evaluating ALS model...")
+        # 6. Evaluate ALS
+        log.info("Evaluating ALS model...")
         als_metrics = evaluate_all(als_model, train, test, config)
 
         # 7. Top-K recommendations
-        # Saved as JSON (not parquet) to avoid needing winutils.exe on Windows
         k = config["evaluation"]["top_k"]
-        logger.info(f"Generating top-{k} recommendations for all users...")
+        log.info(f"Generating top-{k} recommendations for all users...")
         user_recs = generate_top_n_recommendations(als_model, n=k)
 
-        recs_path = str(Path(output_dir) / f"top_{k}_recommendations.json")
+        # Save as JSON instead of parquet to avoid the Hadoop/winutils
+        # dependency on Windows. Pandas writes JSON natively, no Hadoop needed.
+        recs_path = resolve_path(output_dir, f"top_{k}_recommendations.json")
         user_recs_pdf = user_recs.toPandas()
+        # Convert the list-of-Rows column to plain dicts for clean JSON
         user_recs_pdf["recommendations"] = user_recs_pdf["recommendations"].apply(
-            lambda recs: [
-                {"movieId": int(r["movieId"]), "score": float(r["rating"])}
-                for r in recs
-            ]
+            lambda recs: [{"movieId": r["movieId"], "score": float(r["rating"])} for r in recs]
         )
         user_recs_pdf.to_json(recs_path, orient="records", lines=True)
-        logger.info(f"Saved recommendations to: {recs_path}")
+        log.info(f"Saved recommendations to: {recs_path}")
 
         # 8. Save model
+        # On Windows, Spark's model.save also needs Hadoop. We skip it locally
+        # and rely on the cloud run for the persisted model artefact.
         model_path = resolve_path(output_dir, "als_model")
         try:
             save_model(als_model, model_path)
         except Exception as exc:
-            logger.warning(f"Skipping local model save: {exc}")
+            log.warning(
+                f"Skipping local model save (likely Windows/Hadoop issue): {exc}"
+            )
 
-        # 9. Optional baselines
+        # 9. Optional baselines (SVD + KNN)
         baseline_metrics = {}
         if run_baselines:
-            logger.info("Training baseline models (SVD + KNN)...")
+            log.info("Training baseline models (SVD + KNN)...")
             from src.models.svd_baseline import evaluate_svd, train_svd
             from src.models.knn_baseline import evaluate_knn
 
@@ -112,7 +109,7 @@ def main(config_path: str, run_baselines: bool) -> int:
             knn_rmse, knn_mae = evaluate_knn(train, test, k=20)
             baseline_metrics["knn"] = {"rmse": knn_rmse, "mae": knn_mae}
 
-        # 10. Save metrics
+        # 10. Save metrics report
         elapsed = time.time() - start
         report = {
             "dataset_stats":    stats,
@@ -121,24 +118,24 @@ def main(config_path: str, run_baselines: bool) -> int:
             "als_metrics":      als_metrics,
             "baseline_metrics": baseline_metrics,
             "config_used": {
-                "rank":             config["als"]["rank"],
-                "max_iter":         config["als"]["max_iter"],
-                "reg_param":        config["als"]["reg_param"],
+                "rank":      config["als"]["rank"],
+                "max_iter":  config["als"]["max_iter"],
+                "reg_param": config["als"]["reg_param"],
                 "min_user_ratings": config["preprocessing"]["min_user_ratings"],
             },
-            "elapsed_seconds": round(elapsed, 2),
+            "elapsed_seconds":  round(elapsed, 2),
         }
 
         metrics_path = Path(output_dir) / "metrics.json"
         with open(metrics_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, default=str)
-        logger.info(f"Saved metrics to: {metrics_path}")
+        log.info(f"Saved metrics to: {metrics_path}")
 
-        logger.info(f"Pipeline complete in {elapsed:.1f}s")
+        log.info(f"Pipeline complete in {elapsed:.1f}s")
         return 0
 
     except Exception as e:
-        logger.exception(f"Pipeline failed: {e}")
+        log.exception(f"Pipeline failed: {e}")
         return 1
     finally:
         spark.stop()
@@ -146,7 +143,15 @@ def main(config_path: str, run_baselines: bool) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MovieLens recommendation pipeline (local)")
-    parser.add_argument("--config", default="configs/config.yaml", help="Path to YAML config file")
-    parser.add_argument("--baselines", action="store_true", help="Also train SVD and KNN baselines")
+    parser.add_argument(
+        "--config",
+        default="configs/config.yaml",
+        help="YAML config",
+    )
+    parser.add_argument(
+        "--baselines",
+        action="store_true",
+        help="Also train SVD and KNN baselines",
+    )
     args = parser.parse_args()
     sys.exit(main(args.config, args.baselines))

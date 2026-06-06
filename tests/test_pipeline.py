@@ -1,12 +1,4 @@
-"""
-Lightweight unit tests for the pipeline.
-
-Run with:
-    pytest tests/ -v
-
-These tests do not require a Spark session - they exercise the pure-Python
-helpers in src/utils.py and the config loading.
-"""
+"""Lightweight unit tests for the pipeline - run with: pytest tests/ -v"""
 from pathlib import Path
 
 import pytest
@@ -34,7 +26,6 @@ def test_resolve_path_s3():
 
 
 def test_load_config_exists():
-    """The bundled config file should load and contain the expected keys."""
     cfg = load_config("configs/config.yaml")
     assert "project" in cfg
     assert "paths" in cfg
@@ -43,7 +34,6 @@ def test_load_config_exists():
 
 
 def test_als_config_values():
-    """Verify the documented ALS hyperparameters are present."""
     cfg = load_config("configs/config.yaml")
     als = cfg["als"]
     assert als["rank"] == 10
@@ -53,7 +43,6 @@ def test_als_config_values():
 
 
 def test_seed_is_42():
-    """The reported run used seed=42 - this must not change without intent."""
     cfg = load_config("configs/config.yaml")
     assert cfg["project"]["random_seed"] == 42
 
